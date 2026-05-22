@@ -1,0 +1,491 @@
+// ===----------------------------------------------------------------------===//
+//
+// This source file is part of the swift-primitives open source project
+//
+// Copyright (c) 2024-2026 Coen ten Thije Boonkkamp and the swift-primitives project authors
+// Licensed under Apache License v2.0
+//
+// See LICENSE for license information
+//
+// ===----------------------------------------------------------------------===//
+
+// Binary.Cursor.swift
+// Position-tracked view over byte storage using Index<Storage> pattern.
+
+public import Index_Primitives
+public import Memory_Contiguous_Primitives
+
+extension Binary {
+    /// A position-tracked view over mutable contiguous byte storage.
+    ///
+    /// Uses the `Index<Storage>` pattern from index-primitives:
+    /// - `Index<Storage>` for byte positions (phantom-typed via Storage)
+    /// - `Index<Storage>.Offset` for signed displacements
+    /// - `Index<Storage>.Count` for byte counts
+    ///
+    /// This aligns with storage-primitives' pattern where the storage type
+    /// itself serves as the phantom tag for type safety.
+    ///
+    /// ## Type Safety
+    ///
+    /// ```swift
+    /// var cursor1 = try Binary.Cursor(storage: buffer1)
+    /// var cursor2 = try Binary.Cursor(storage: buffer2)
+    ///
+    /// // cursor1.readerIndex == cursor2.readerIndex
+    /// // ^ Compile error if buffer1 and buffer2 are different types
+    /// ```
+    ///
+    /// ## Invariants
+    ///
+    /// `0 <= readerIndex <= writerIndex <= count`
+    public struct Cursor<Storage: Memory.Contiguous.`Protocol` & ~Copyable>: ~Copyable
+    where Storage.Element == UInt8 {
+        /// The underlying storage.
+        public var storage: Storage
+
+        /// The storage count (validated once at construction).
+        @usableFromInline
+        internal let _count: Index<Storage>.Count
+
+        /// The current read position.
+        @usableFromInline
+        internal var _readerIndex: Index<Storage>
+
+        /// The current write position.
+        @usableFromInline
+        internal var _writerIndex: Index<Storage>
+    }
+}
+
+// MARK: - Indices
+
+extension Binary.Cursor {
+    /// The current read position.
+    public var readerIndex: Index<Storage> {
+        _readerIndex
+    }
+
+    /// The current write position.
+    public var writerIndex: Index<Storage> {
+        _writerIndex
+    }
+
+    /// The storage count.
+    public var count: Index<Storage>.Count {
+        _count
+    }
+}
+
+// MARK: - Default Initializer
+
+extension Binary.Cursor {
+    /// Creates a cursor over the given storage with indices at zero.
+    ///
+    /// Both reader and writer start at position zero.
+    ///
+    /// - Parameter storage: The underlying storage.
+    @inlinable
+    public init(storage: consuming Storage) {
+        let byteCount = storage.span.count
+        self.storage = storage
+        self._count = Index<Storage>.Count(Cardinal(UInt(byteCount)))
+        self._readerIndex = .zero
+        self._writerIndex = .zero
+    }
+}
+
+// MARK: - Validated Initializer
+
+extension Binary.Cursor {
+    /// Creates a cursor over the given storage with validated indices.
+    ///
+    /// - Parameters:
+    ///   - storage: The underlying storage.
+    ///   - readerIndex: The initial reader position.
+    ///   - writerIndex: The initial writer position.
+    /// - Throws: `Binary.Error` if indices violate invariants.
+    @inlinable
+    public init(
+        storage: consuming Storage,
+        readerIndex: Index<Storage>,
+        writerIndex: Index<Storage>
+    ) throws(Binary.Error) {
+        let byteCount = storage.span.count
+        let count = Index<Storage>.Count(Cardinal(UInt(byteCount)))
+
+        guard writerIndex >= readerIndex else {
+            throw .invariant(
+                .init(
+                    kind: .reader,
+                    left: Int(bitPattern: readerIndex),
+                    right: Int(bitPattern: writerIndex)
+                )
+            )
+        }
+
+        guard writerIndex <= count else {
+            throw .bounds(
+                .init(
+                    field: .writer,
+                    value: Int(bitPattern: writerIndex),
+                    lower: 0,
+                    upper: Int(bitPattern: count)
+                )
+            )
+        }
+
+        self.storage = storage
+        self._count = count
+        self._readerIndex = readerIndex
+        self._writerIndex = writerIndex
+    }
+}
+
+// MARK: - Unchecked Initializer
+
+extension Binary.Cursor {
+    /// Creates a cursor without validation.
+    ///
+    /// Use this in performance-critical paths where invariants are
+    /// guaranteed by construction or prior validation.
+    ///
+    /// - Parameters:
+    ///   - __unchecked: Marker parameter (pass `()` or omit).
+    ///   - storage: The underlying storage.
+    ///   - readerIndex: The initial reader position.
+    ///   - writerIndex: The initial writer position.
+    /// - Precondition: `0 <= readerIndex <= writerIndex <= storage.span.count`
+    @inlinable
+    public init(
+        __unchecked: Void = (),
+        storage: consuming Storage,
+        readerIndex: Index<Storage>,
+        writerIndex: Index<Storage>
+    ) {
+        let byteCount = storage.span.count
+        let count = Index<Storage>.Count(Cardinal(UInt(byteCount)))
+        precondition(writerIndex >= readerIndex)
+        precondition(writerIndex <= count)
+        self.storage = storage
+        self._count = count
+        self._readerIndex = readerIndex
+        self._writerIndex = writerIndex
+    }
+}
+
+// MARK: - Computed Properties
+
+extension Binary.Cursor {
+    /// Bytes available for reading.
+    @inlinable
+    public var readableCount: Index<Storage>.Count {
+        // Safe: invariant guarantees writer >= reader
+        let reader = Int(bitPattern: _readerIndex)
+        let writer = Int(bitPattern: _writerIndex)
+        return Index<Storage>.Count(Cardinal(UInt(writer - reader)))
+    }
+
+    /// Bytes available for writing.
+    @inlinable
+    public var writableCount: Index<Storage>.Count {
+        // Safe: invariant guarantees count >= writer
+        let writer = Int(bitPattern: _writerIndex)
+        let count = Int(bitPattern: _count)
+        return Index<Storage>.Count(Cardinal(UInt(count - writer)))
+    }
+
+    /// Whether there are bytes available to read.
+    @inlinable
+    public var isReadable: Bool {
+        _writerIndex > _readerIndex
+    }
+
+    /// Whether there is space available to write.
+    @inlinable
+    public var isWritable: Bool {
+        _writerIndex < _count
+    }
+}
+
+// MARK: - Move Reader Index
+
+extension Binary.Cursor {
+    /// Move reader index by offset.
+    ///
+    /// - Parameter offset: The displacement to apply.
+    /// - Throws: `Binary.Error` if resulting index would be invalid.
+    @inlinable
+    public mutating func moveReaderIndex(
+        by offset: Index<Storage>.Offset
+    ) throws(Binary.Error) {
+        let currentReader = Int(bitPattern: _readerIndex)
+        let currentWriter = Int(bitPattern: _writerIndex)
+        let offsetValue = Int(bitPattern: offset)
+
+        let (newIndex, overflow) = currentReader.addingReportingOverflow(offsetValue)
+
+        guard !overflow else {
+            throw .overflow(.init(operation: .addition, field: .reader))
+        }
+
+        guard newIndex >= 0 else {
+            throw .bounds(
+                .init(
+                    field: .reader,
+                    value: newIndex,
+                    lower: 0,
+                    upper: currentWriter
+                )
+            )
+        }
+
+        guard newIndex <= currentWriter else {
+            throw .invariant(
+                .init(
+                    kind: .reader,
+                    left: newIndex,
+                    right: currentWriter
+                )
+            )
+        }
+
+        _readerIndex = Index<Storage>(Ordinal(UInt(newIndex)))
+    }
+
+    /// Move reader index by offset (unchecked).
+    ///
+    /// - Parameters:
+    ///   - __unchecked: Marker parameter (pass `()` or omit).
+    ///   - offset: The displacement to apply.
+    /// - Precondition: No overflow occurs.
+    /// - Precondition: Result must satisfy `0 <= readerIndex <= writerIndex`.
+    @inlinable
+    public mutating func moveReaderIndex(
+        __unchecked: Void = (),
+        by offset: Index<Storage>.Offset
+    ) {
+        let currentReader = Int(bitPattern: _readerIndex)
+        let currentWriter = Int(bitPattern: _writerIndex)
+        let offsetValue = Int(bitPattern: offset)
+
+        let newIndex = currentReader &+ offsetValue
+        precondition(newIndex >= 0 && newIndex <= currentWriter)
+        _readerIndex = Index<Storage>(Ordinal(UInt(newIndex)))
+    }
+}
+
+// MARK: - Move Writer Index
+
+extension Binary.Cursor {
+    /// Move writer index by offset.
+    ///
+    /// - Parameter offset: The displacement to apply.
+    /// - Throws: `Binary.Error` if resulting index would be invalid.
+    @inlinable
+    public mutating func moveWriterIndex(
+        by offset: Index<Storage>.Offset
+    ) throws(Binary.Error) {
+        let currentReader = Int(bitPattern: _readerIndex)
+        let currentWriter = Int(bitPattern: _writerIndex)
+        let count = Int(bitPattern: _count)
+        let offsetValue = Int(bitPattern: offset)
+
+        let (newIndex, overflow) = currentWriter.addingReportingOverflow(offsetValue)
+
+        guard !overflow else {
+            throw .overflow(.init(operation: .addition, field: .writer))
+        }
+
+        guard newIndex >= currentReader else {
+            throw .invariant(
+                .init(
+                    kind: .reader,
+                    left: currentReader,
+                    right: newIndex
+                )
+            )
+        }
+
+        guard newIndex <= count else {
+            throw .bounds(
+                .init(
+                    field: .writer,
+                    value: newIndex,
+                    lower: currentReader,
+                    upper: count
+                )
+            )
+        }
+
+        _writerIndex = Index<Storage>(Ordinal(UInt(newIndex)))
+    }
+
+    /// Move writer index by offset (unchecked).
+    ///
+    /// - Parameters:
+    ///   - __unchecked: Marker parameter (pass `()` or omit).
+    ///   - offset: The displacement to apply.
+    /// - Precondition: No overflow occurs.
+    /// - Precondition: Result must satisfy `readerIndex <= writerIndex <= count`.
+    @inlinable
+    public mutating func moveWriterIndex(
+        __unchecked: Void = (),
+        by offset: Index<Storage>.Offset
+    ) {
+        let currentReader = Int(bitPattern: _readerIndex)
+        let currentWriter = Int(bitPattern: _writerIndex)
+        let count = Int(bitPattern: _count)
+        let offsetValue = Int(bitPattern: offset)
+
+        let newIndex = currentWriter &+ offsetValue
+        precondition(newIndex >= currentReader && newIndex <= count)
+        _writerIndex = Index<Storage>(Ordinal(UInt(newIndex)))
+    }
+}
+
+// MARK: - Set Reader Index
+
+extension Binary.Cursor {
+    /// Set reader index to position.
+    ///
+    /// - Parameter position: The new reader position.
+    /// - Throws: `Binary.Error` if position is invalid.
+    @inlinable
+    public mutating func setReaderIndex(
+        to position: Index<Storage>
+    ) throws(Binary.Error) {
+        let currentWriter = Int(bitPattern: _writerIndex)
+        let positionValue = Int(bitPattern: position)
+
+        guard positionValue <= currentWriter else {
+            throw .invariant(
+                .init(
+                    kind: .reader,
+                    left: positionValue,
+                    right: currentWriter
+                )
+            )
+        }
+
+        _readerIndex = position
+    }
+
+    /// Set reader index to position (unchecked).
+    ///
+    /// - Parameters:
+    ///   - __unchecked: Marker parameter (pass `()` or omit).
+    ///   - position: The new reader position.
+    /// - Precondition: `0 <= position <= writerIndex`.
+    @inlinable
+    public mutating func setReaderIndex(
+        __unchecked: Void = (),
+        to position: Index<Storage>
+    ) {
+        let currentWriter = Int(bitPattern: _writerIndex)
+        let positionValue = Int(bitPattern: position)
+        precondition(positionValue <= currentWriter)
+        _readerIndex = position
+    }
+}
+
+// MARK: - Set Writer Index
+
+extension Binary.Cursor {
+    /// Set writer index to position.
+    ///
+    /// - Parameter position: The new writer position.
+    /// - Throws: `Binary.Error` if position is invalid.
+    @inlinable
+    public mutating func setWriterIndex(
+        to position: Index<Storage>
+    ) throws(Binary.Error) {
+        let currentReader = Int(bitPattern: _readerIndex)
+        let count = Int(bitPattern: _count)
+        let positionValue = Int(bitPattern: position)
+
+        guard positionValue >= currentReader else {
+            throw .invariant(
+                .init(
+                    kind: .reader,
+                    left: currentReader,
+                    right: positionValue
+                )
+            )
+        }
+
+        guard positionValue <= count else {
+            throw .bounds(
+                .init(
+                    field: .writer,
+                    value: positionValue,
+                    lower: currentReader,
+                    upper: count
+                )
+            )
+        }
+
+        _writerIndex = position
+    }
+
+    /// Set writer index to position (unchecked).
+    ///
+    /// - Parameters:
+    ///   - __unchecked: Marker parameter (pass `()` or omit).
+    ///   - position: The new writer position.
+    /// - Precondition: `readerIndex <= position <= count`.
+    @inlinable
+    public mutating func setWriterIndex(
+        __unchecked: Void = (),
+        to position: Index<Storage>
+    ) {
+        let currentReader = Int(bitPattern: _readerIndex)
+        let count = Int(bitPattern: _count)
+        let positionValue = Int(bitPattern: position)
+        precondition(positionValue >= currentReader && positionValue <= count)
+        _writerIndex = position
+    }
+}
+
+// MARK: - Reset
+
+extension Binary.Cursor {
+    /// Reset both indices to zero.
+    @inlinable
+    public mutating func reset() {
+        _readerIndex = .zero
+        _writerIndex = .zero
+    }
+}
+
+// MARK: - Region Access
+
+extension Binary.Cursor {
+    /// Returns a span of the readable bytes region.
+    ///
+    /// The readable region is `storage[readerIndex..<writerIndex]`.
+    /// The span is lifetime-bound to the cursor.
+    @inlinable
+    public var readableBytes: Span<UInt8> {
+        @_lifetime(borrow self)
+        borrowing get {
+            let readerIdx = Int(bitPattern: _readerIndex)
+            let writerIdx = Int(bitPattern: _writerIndex)
+            return storage.span.extracting(readerIdx..<writerIdx)
+        }
+    }
+
+    /// Provides read-only access to the readable bytes region via closure.
+    ///
+    /// The readable region is `storage[readerIndex..<writerIndex]`.
+    /// The buffer pointer is valid only within the closure scope.
+    @inlinable
+    public func withReadableBytes<R, E: Swift.Error>(
+        _ body: (UnsafeRawBufferPointer) throws(E) -> R
+    ) throws(E) -> R {
+        let span = readableBytes
+        return try unsafe span.withUnsafeBytes { (rawBuffer: UnsafeRawBufferPointer) throws(E) -> R in
+            try unsafe body(rawBuffer)
+        }
+    }
+}

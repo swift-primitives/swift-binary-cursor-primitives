@@ -1,0 +1,9 @@
+# .github/metadata.yaml
+description: "Binary.Cursor + Binary.Reader — position-tracked readers over Memory.Contiguous<Byte> storage with Index<Storage>-typed positions."
+topics:
+  - primitives
+  - binary
+  - cursor
+homepage: "https://swift-institute.org"
+readme:
+  family: E
