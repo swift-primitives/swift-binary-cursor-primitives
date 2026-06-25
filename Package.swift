@@ -22,22 +22,19 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(path: "../swift-binary-primitives"),
-        .package(path: "../swift-cursor-primitives"),
-        .package(path: "../swift-memory-cursor-primitives"),
-        .package(path: "../swift-index-primitives"),
-        .package(path: "../swift-memory-primitives"),
+        .package(url: "https://github.com/swift-primitives/swift-binary-primitives.git", branch: "main"),
+        .package(url: "https://github.com/swift-primitives/swift-index-primitives.git", branch: "main"),
+        .package(url: "https://github.com/swift-primitives/swift-span-primitives.git", branch: "main"),
+        .package(url: "https://github.com/swift-primitives/swift-byte-primitives.git", branch: "main"),
     ],
     targets: [
         .target(
             name: "Binary Cursor Primitives",
             dependencies: [
                 .product(name: "Binary Primitive", package: "swift-binary-primitives"),
-                .product(name: "Binary Error Primitives", package: "swift-binary-primitives"),
-                .product(name: "Cursor Primitives", package: "swift-cursor-primitives"),
-                .product(name: "Memory Cursor Primitives", package: "swift-memory-cursor-primitives"),
                 .product(name: "Index Primitives", package: "swift-index-primitives"),
-                .product(name: "Memory Contiguous Primitives", package: "swift-memory-primitives"),
+                .product(name: "Span Protocol Primitives", package: "swift-span-primitives"),
+                .product(name: "Byte Primitives", package: "swift-byte-primitives"),
             ]
         ),
         .target(

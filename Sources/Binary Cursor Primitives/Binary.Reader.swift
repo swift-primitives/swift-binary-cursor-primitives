@@ -12,9 +12,9 @@
 // Binary.Reader.swift
 // Read-only position-tracked view over byte storage using Index<Storage> pattern.
 
-public import Binary_Error_Primitives
+public import Byte_Primitives
 public import Index_Primitives
-public import Memory_Contiguous_Primitives
+public import Span_Protocol_Primitives
 
 extension Binary {
     /// A read-only position-tracked view over contiguous byte storage.
@@ -40,8 +40,16 @@ extension Binary {
     /// ## Invariants
     ///
     /// `0 <= readerIndex <= count`
-    public struct Reader<Storage: Memory.Contiguous.`Protocol` & ~Copyable>: ~Copyable
-    where Storage.Element == UInt8 {
+    ///
+    /// ## Lifetime
+    ///
+    /// `~Copyable & ~Escapable`. `Storage` is a `Span.\`Protocol\`` conformer
+    /// whose suppression of `Escapable` is restated here, so the canonical
+    /// conformer — a borrowed `Swift.Span<Byte>` — qualifies. The reader stores
+    /// that borrow by value and cannot outlive the storage it reads
+    /// (compiler-enforced via `@_lifetime(copy storage)` on the initializers).
+    public struct Reader<Storage: Span.`Protocol` & ~Copyable & ~Escapable>: ~Copyable, ~Escapable
+    where Storage.Element == Byte {
         /// The underlying storage.
         public let storage: Storage
 
@@ -52,12 +60,28 @@ extension Binary {
         /// The current read position.
         @usableFromInline
         internal var _readerIndex: Index<Storage>
+
+        /// Creates a reader over the given storage with index at zero.
+        ///
+        /// The reader binds its lifetime to `storage`'s own lifetime scope
+        /// (e.g., a `Swift.Span<Byte>`'s borrow lifetime propagates through
+        /// this initializer).
+        ///
+        /// - Parameter storage: The underlying storage.
+        @inlinable
+        @_lifetime(copy storage)
+        public init(storage: consuming Storage) {
+            let byteCount = storage.span.count
+            self.storage = storage
+            self._count = Index<Storage>.Count(Cardinal(UInt(byteCount)))
+            self._readerIndex = .zero
+        }
     }
 }
 
 // MARK: - Indices
 
-extension Binary.Reader {
+extension Binary.Reader where Storage: ~Copyable & ~Escapable {
     /// The current read position.
     public var readerIndex: Index<Storage> {
         _readerIndex
@@ -69,46 +93,29 @@ extension Binary.Reader {
     }
 }
 
-// MARK: - Default Initializer
-
-extension Binary.Reader {
-    /// Creates a reader over the given storage with index at zero.
-    ///
-    /// - Parameter storage: The underlying storage.
-    @inlinable
-    public init(storage: consuming Storage) {
-        let byteCount = storage.span.count
-        self.storage = storage
-        self._count = Index<Storage>.Count(Cardinal(UInt(byteCount)))
-        self._readerIndex = .zero
-    }
-}
-
 // MARK: - Validated Initializer
 
-extension Binary.Reader {
+extension Binary.Reader where Storage: ~Copyable & ~Escapable {
     /// Creates a reader over the given storage with validated index.
     ///
     /// - Parameters:
     ///   - storage: The underlying storage.
     ///   - readerIndex: The initial reader position.
-    /// - Throws: `Binary.Error` if index violates invariants.
+    /// - Throws: `Binary.Reader.Error` if index violates invariants.
     @inlinable
+    @_lifetime(copy storage)
     public init(
         storage: consuming Storage,
         readerIndex: Index<Storage>
-    ) throws(Binary.Error) {
+    ) throws(Binary.Reader<Storage>.Error) {
         let byteCount = storage.span.count
         let count = Index<Storage>.Count(Cardinal(UInt(byteCount)))
 
         guard readerIndex <= count else {
             throw .bounds(
-                .init(
-                    field: .reader,
-                    value: Int(bitPattern: readerIndex),
-                    lower: 0,
-                    upper: Int(bitPattern: count)
-                )
+                value: Int(bitPattern: readerIndex),
+                lower: 0,
+                upper: Int(bitPattern: count)
             )
         }
 
@@ -120,7 +127,7 @@ extension Binary.Reader {
 
 // MARK: - Unchecked Initializer
 
-extension Binary.Reader {
+extension Binary.Reader where Storage: ~Copyable & ~Escapable {
     /// Creates a reader without validation.
     ///
     /// Use this in performance-critical paths where invariants are
@@ -132,6 +139,7 @@ extension Binary.Reader {
     ///   - readerIndex: The initial reader position.
     /// - Precondition: `0 <= readerIndex <= storage.span.count`
     @inlinable
+    @_lifetime(copy storage)
     public init(
         __unchecked: Void = (),
         storage: consuming Storage,
@@ -149,7 +157,7 @@ extension Binary.Reader {
 
 // MARK: - Computed Properties
 
-extension Binary.Reader {
+extension Binary.Reader where Storage: ~Copyable & ~Escapable {
     /// Bytes remaining to read.
     @inlinable
     public var remainingCount: Index<Storage>.Count {
@@ -174,15 +182,15 @@ extension Binary.Reader {
 
 // MARK: - Move Reader Index
 
-extension Binary.Reader {
+extension Binary.Reader where Storage: ~Copyable & ~Escapable {
     /// Move reader index by offset.
     ///
     /// - Parameter offset: The displacement to apply.
-    /// - Throws: `Binary.Error` if resulting index would be invalid.
+    /// - Throws: `Binary.Reader.Error` if resulting index would be invalid.
     @inlinable
     public mutating func moveReaderIndex(
         by offset: Index<Storage>.Offset
-    ) throws(Binary.Error) {
+    ) throws(Binary.Reader<Storage>.Error) {
         let currentReader = Int(bitPattern: _readerIndex)
         let count = Int(bitPattern: _count)
         let offsetValue = Int(bitPattern: offset)
@@ -190,28 +198,22 @@ extension Binary.Reader {
         let (newIndex, overflow) = currentReader.addingReportingOverflow(offsetValue)
 
         guard !overflow else {
-            throw .overflow(.init(operation: .addition, field: .reader))
+            throw .overflow
         }
 
         guard newIndex >= 0 else {
             throw .bounds(
-                .init(
-                    field: .reader,
-                    value: newIndex,
-                    lower: 0,
-                    upper: count
-                )
+                value: newIndex,
+                lower: 0,
+                upper: count
             )
         }
 
         guard newIndex <= count else {
             throw .bounds(
-                .init(
-                    field: .reader,
-                    value: newIndex,
-                    lower: 0,
-                    upper: count
-                )
+                value: newIndex,
+                lower: 0,
+                upper: count
             )
         }
 
@@ -242,26 +244,23 @@ extension Binary.Reader {
 
 // MARK: - Set Reader Index
 
-extension Binary.Reader {
+extension Binary.Reader where Storage: ~Copyable & ~Escapable {
     /// Set reader index to position.
     ///
     /// - Parameter position: The new reader position.
-    /// - Throws: `Binary.Error` if position is invalid.
+    /// - Throws: `Binary.Reader.Error` if position is invalid.
     @inlinable
     public mutating func setReaderIndex(
         to position: Index<Storage>
-    ) throws(Binary.Error) {
+    ) throws(Binary.Reader<Storage>.Error) {
         let count = Int(bitPattern: _count)
         let positionValue = Int(bitPattern: position)
 
         guard positionValue <= count else {
             throw .bounds(
-                .init(
-                    field: .reader,
-                    value: positionValue,
-                    lower: 0,
-                    upper: count
-                )
+                value: positionValue,
+                lower: 0,
+                upper: count
             )
         }
 
@@ -288,7 +287,7 @@ extension Binary.Reader {
 
 // MARK: - Reset
 
-extension Binary.Reader {
+extension Binary.Reader where Storage: ~Copyable & ~Escapable {
     /// Reset reader index to zero.
     @inlinable
     public mutating func reset() {
@@ -298,13 +297,13 @@ extension Binary.Reader {
 
 // MARK: - Region Access
 
-extension Binary.Reader {
+extension Binary.Reader where Storage: ~Copyable & ~Escapable {
     /// Returns a span of the remaining bytes region.
     ///
     /// The remaining region is `storage[readerIndex..<count]`.
     /// The span is lifetime-bound to the reader.
     @inlinable
-    public var remainingBytes: Span<UInt8> {
+    public var remainingBytes: Swift.Span<Byte> {
         @_lifetime(borrow self)
         borrowing get {
             let readerIdx = Int(bitPattern: _readerIndex)

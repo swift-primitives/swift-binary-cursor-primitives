@@ -12,11 +12,12 @@
 // Binary.Cursor.swift
 // Position-tracked view over byte storage using Index<Storage> pattern.
 
+public import Byte_Primitives
 public import Index_Primitives
-public import Memory_Contiguous_Primitives
+public import Span_Protocol_Primitives
 
 extension Binary {
-    /// A position-tracked view over mutable contiguous byte storage.
+    /// A position-tracked view over borrowed contiguous byte storage.
     ///
     /// Uses the `Index<Storage>` pattern from index-primitives:
     /// - `Index<Storage>` for byte positions (phantom-typed via Storage)
@@ -39,10 +40,22 @@ extension Binary {
     /// ## Invariants
     ///
     /// `0 <= readerIndex <= writerIndex <= count`
-    public struct Cursor<Storage: Memory.Contiguous.`Protocol` & ~Copyable>: ~Copyable
-    where Storage.Element == UInt8 {
-        /// The underlying storage.
-        public var storage: Storage
+    ///
+    /// ## Lifetime
+    ///
+    /// `~Copyable & ~Escapable`. `Storage` is a `Span.\`Protocol\`` conformer
+    /// whose suppression of `Escapable` is restated here, so the canonical
+    /// conformer — a borrowed `Swift.Span<Byte>` — qualifies. The cursor stores
+    /// that borrow by value and cannot outlive the storage it reads
+    /// (compiler-enforced via `@_lifetime(copy storage)` on the initializers).
+    public struct Cursor<Storage: Span.`Protocol` & ~Copyable & ~Escapable>: ~Copyable, ~Escapable
+    where Storage.Element == Byte {
+        /// The borrowed storage.
+        ///
+        /// The reader spans `[readerIndex, writerIndex)` and the writer index
+        /// marks the valid-data extent. Set once at construction; the borrow is
+        /// read-only.
+        public let storage: Storage
 
         /// The storage count (validated once at construction).
         @usableFromInline
@@ -55,12 +68,30 @@ extension Binary {
         /// The current write position.
         @usableFromInline
         internal var _writerIndex: Index<Storage>
+
+        /// Creates a cursor over the given storage with indices at zero.
+        ///
+        /// Both reader and writer start at position zero. The cursor binds its
+        /// lifetime to `storage`'s own lifetime scope (e.g., a
+        /// `Swift.Span<Byte>`'s borrow lifetime propagates through this
+        /// initializer).
+        ///
+        /// - Parameter storage: The underlying storage.
+        @inlinable
+        @_lifetime(copy storage)
+        public init(storage: consuming Storage) {
+            let byteCount = storage.span.count
+            self.storage = storage
+            self._count = Index<Storage>.Count(Cardinal(UInt(byteCount)))
+            self._readerIndex = .zero
+            self._writerIndex = .zero
+        }
     }
 }
 
 // MARK: - Indices
 
-extension Binary.Cursor {
+extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
     /// The current read position.
     public var readerIndex: Index<Storage> {
         _readerIndex
@@ -77,61 +108,39 @@ extension Binary.Cursor {
     }
 }
 
-// MARK: - Default Initializer
-
-extension Binary.Cursor {
-    /// Creates a cursor over the given storage with indices at zero.
-    ///
-    /// Both reader and writer start at position zero.
-    ///
-    /// - Parameter storage: The underlying storage.
-    @inlinable
-    public init(storage: consuming Storage) {
-        let byteCount = storage.span.count
-        self.storage = storage
-        self._count = Index<Storage>.Count(Cardinal(UInt(byteCount)))
-        self._readerIndex = .zero
-        self._writerIndex = .zero
-    }
-}
-
 // MARK: - Validated Initializer
 
-extension Binary.Cursor {
+extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
     /// Creates a cursor over the given storage with validated indices.
     ///
     /// - Parameters:
     ///   - storage: The underlying storage.
     ///   - readerIndex: The initial reader position.
     ///   - writerIndex: The initial writer position.
-    /// - Throws: `Binary.Error` if indices violate invariants.
+    /// - Throws: `Binary.Cursor.Error` if indices violate invariants.
     @inlinable
+    @_lifetime(copy storage)
     public init(
         storage: consuming Storage,
         readerIndex: Index<Storage>,
         writerIndex: Index<Storage>
-    ) throws(Binary.Error) {
+    ) throws(Binary.Cursor<Storage>.Error) {
         let byteCount = storage.span.count
         let count = Index<Storage>.Count(Cardinal(UInt(byteCount)))
 
         guard writerIndex >= readerIndex else {
             throw .invariant(
-                .init(
-                    kind: .reader,
-                    left: Int(bitPattern: readerIndex),
-                    right: Int(bitPattern: writerIndex)
-                )
+                reader: Int(bitPattern: readerIndex),
+                writer: Int(bitPattern: writerIndex)
             )
         }
 
         guard writerIndex <= count else {
             throw .bounds(
-                .init(
-                    field: .writer,
-                    value: Int(bitPattern: writerIndex),
-                    lower: 0,
-                    upper: Int(bitPattern: count)
-                )
+                .writer,
+                value: Int(bitPattern: writerIndex),
+                lower: 0,
+                upper: Int(bitPattern: count)
             )
         }
 
@@ -144,7 +153,7 @@ extension Binary.Cursor {
 
 // MARK: - Unchecked Initializer
 
-extension Binary.Cursor {
+extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
     /// Creates a cursor without validation.
     ///
     /// Use this in performance-critical paths where invariants are
@@ -157,6 +166,7 @@ extension Binary.Cursor {
     ///   - writerIndex: The initial writer position.
     /// - Precondition: `0 <= readerIndex <= writerIndex <= storage.span.count`
     @inlinable
+    @_lifetime(copy storage)
     public init(
         __unchecked: Void = (),
         storage: consuming Storage,
@@ -176,7 +186,7 @@ extension Binary.Cursor {
 
 // MARK: - Computed Properties
 
-extension Binary.Cursor {
+extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
     /// Bytes available for reading.
     @inlinable
     public var readableCount: Index<Storage>.Count {
@@ -210,15 +220,15 @@ extension Binary.Cursor {
 
 // MARK: - Move Reader Index
 
-extension Binary.Cursor {
+extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
     /// Move reader index by offset.
     ///
     /// - Parameter offset: The displacement to apply.
-    /// - Throws: `Binary.Error` if resulting index would be invalid.
+    /// - Throws: `Binary.Cursor.Error` if resulting index would be invalid.
     @inlinable
     public mutating func moveReaderIndex(
         by offset: Index<Storage>.Offset
-    ) throws(Binary.Error) {
+    ) throws(Binary.Cursor<Storage>.Error) {
         let currentReader = Int(bitPattern: _readerIndex)
         let currentWriter = Int(bitPattern: _writerIndex)
         let offsetValue = Int(bitPattern: offset)
@@ -226,28 +236,20 @@ extension Binary.Cursor {
         let (newIndex, overflow) = currentReader.addingReportingOverflow(offsetValue)
 
         guard !overflow else {
-            throw .overflow(.init(operation: .addition, field: .reader))
+            throw .overflow(.reader)
         }
 
         guard newIndex >= 0 else {
             throw .bounds(
-                .init(
-                    field: .reader,
-                    value: newIndex,
-                    lower: 0,
-                    upper: currentWriter
-                )
+                .reader,
+                value: newIndex,
+                lower: 0,
+                upper: currentWriter
             )
         }
 
         guard newIndex <= currentWriter else {
-            throw .invariant(
-                .init(
-                    kind: .reader,
-                    left: newIndex,
-                    right: currentWriter
-                )
-            )
+            throw .invariant(reader: newIndex, writer: currentWriter)
         }
 
         _readerIndex = Index<Storage>(Ordinal(UInt(newIndex)))
@@ -277,15 +279,15 @@ extension Binary.Cursor {
 
 // MARK: - Move Writer Index
 
-extension Binary.Cursor {
+extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
     /// Move writer index by offset.
     ///
     /// - Parameter offset: The displacement to apply.
-    /// - Throws: `Binary.Error` if resulting index would be invalid.
+    /// - Throws: `Binary.Cursor.Error` if resulting index would be invalid.
     @inlinable
     public mutating func moveWriterIndex(
         by offset: Index<Storage>.Offset
-    ) throws(Binary.Error) {
+    ) throws(Binary.Cursor<Storage>.Error) {
         let currentReader = Int(bitPattern: _readerIndex)
         let currentWriter = Int(bitPattern: _writerIndex)
         let count = Int(bitPattern: _count)
@@ -294,27 +296,19 @@ extension Binary.Cursor {
         let (newIndex, overflow) = currentWriter.addingReportingOverflow(offsetValue)
 
         guard !overflow else {
-            throw .overflow(.init(operation: .addition, field: .writer))
+            throw .overflow(.writer)
         }
 
         guard newIndex >= currentReader else {
-            throw .invariant(
-                .init(
-                    kind: .reader,
-                    left: currentReader,
-                    right: newIndex
-                )
-            )
+            throw .invariant(reader: currentReader, writer: newIndex)
         }
 
         guard newIndex <= count else {
             throw .bounds(
-                .init(
-                    field: .writer,
-                    value: newIndex,
-                    lower: currentReader,
-                    upper: count
-                )
+                .writer,
+                value: newIndex,
+                lower: currentReader,
+                upper: count
             )
         }
 
@@ -346,26 +340,20 @@ extension Binary.Cursor {
 
 // MARK: - Set Reader Index
 
-extension Binary.Cursor {
+extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
     /// Set reader index to position.
     ///
     /// - Parameter position: The new reader position.
-    /// - Throws: `Binary.Error` if position is invalid.
+    /// - Throws: `Binary.Cursor.Error` if position is invalid.
     @inlinable
     public mutating func setReaderIndex(
         to position: Index<Storage>
-    ) throws(Binary.Error) {
+    ) throws(Binary.Cursor<Storage>.Error) {
         let currentWriter = Int(bitPattern: _writerIndex)
         let positionValue = Int(bitPattern: position)
 
         guard positionValue <= currentWriter else {
-            throw .invariant(
-                .init(
-                    kind: .reader,
-                    left: positionValue,
-                    right: currentWriter
-                )
-            )
+            throw .invariant(reader: positionValue, writer: currentWriter)
         }
 
         _readerIndex = position
@@ -391,37 +379,29 @@ extension Binary.Cursor {
 
 // MARK: - Set Writer Index
 
-extension Binary.Cursor {
+extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
     /// Set writer index to position.
     ///
     /// - Parameter position: The new writer position.
-    /// - Throws: `Binary.Error` if position is invalid.
+    /// - Throws: `Binary.Cursor.Error` if position is invalid.
     @inlinable
     public mutating func setWriterIndex(
         to position: Index<Storage>
-    ) throws(Binary.Error) {
+    ) throws(Binary.Cursor<Storage>.Error) {
         let currentReader = Int(bitPattern: _readerIndex)
         let count = Int(bitPattern: _count)
         let positionValue = Int(bitPattern: position)
 
         guard positionValue >= currentReader else {
-            throw .invariant(
-                .init(
-                    kind: .reader,
-                    left: currentReader,
-                    right: positionValue
-                )
-            )
+            throw .invariant(reader: currentReader, writer: positionValue)
         }
 
         guard positionValue <= count else {
             throw .bounds(
-                .init(
-                    field: .writer,
-                    value: positionValue,
-                    lower: currentReader,
-                    upper: count
-                )
+                .writer,
+                value: positionValue,
+                lower: currentReader,
+                upper: count
             )
         }
 
@@ -449,7 +429,7 @@ extension Binary.Cursor {
 
 // MARK: - Reset
 
-extension Binary.Cursor {
+extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
     /// Reset both indices to zero.
     @inlinable
     public mutating func reset() {
@@ -460,13 +440,13 @@ extension Binary.Cursor {
 
 // MARK: - Region Access
 
-extension Binary.Cursor {
+extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
     /// Returns a span of the readable bytes region.
     ///
     /// The readable region is `storage[readerIndex..<writerIndex]`.
     /// The span is lifetime-bound to the cursor.
     @inlinable
-    public var readableBytes: Span<UInt8> {
+    public var readableBytes: Swift.Span<Byte> {
         @_lifetime(borrow self)
         borrowing get {
             let readerIdx = Int(bitPattern: _readerIndex)
