@@ -324,7 +324,7 @@ extension `Binary.Cursor Tests`.`Edge Case` {
 
         // A lifetime-dependent cursor cannot escape an #expect(throws:)
         // autoclosure; assert the fault via do/catch in linear scope instead.
-        do {
+        do throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
             _ = try Binary.Cursor(
                 storage: bytes.span,
                 readerIndex: 2,
@@ -340,7 +340,7 @@ extension `Binary.Cursor Tests`.`Edge Case` {
     func `init throws when writer exceeds storage count`() {
         let bytes: [Byte] = [1, 2, 3]
 
-        do {
+        do throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
             _ = try Binary.Cursor(
                 storage: bytes.span,
                 readerIndex: 0,
@@ -361,7 +361,7 @@ extension `Binary.Cursor Tests`.`Edge Case` {
             writerIndex: 3
         )
 
-        do {
+        do throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
             try cursor.moveReaderIndex(by: 5)
             Issue.record("expected Binary.Cursor.Error.invariant")
         } catch {
@@ -378,7 +378,7 @@ extension `Binary.Cursor Tests`.`Edge Case` {
             writerIndex: 3
         )
 
-        do {
+        do throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
             try cursor.moveWriterIndex(by: 10)
             Issue.record("expected Binary.Cursor.Error.bounds")
         } catch {
@@ -388,7 +388,7 @@ extension `Binary.Cursor Tests`.`Edge Case` {
 
     @Test
     func `withReadableBytes propagates typed error`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
-        enum TestError: Swift.Error { case expected }
+        enum Fault: Swift.Error { case expected }
 
         let bytes: [Byte] = [1, 2, 3]
         let cursor = try Binary.Cursor(
@@ -397,11 +397,11 @@ extension `Binary.Cursor Tests`.`Edge Case` {
             writerIndex: 3
         )
 
-        do {
-            try unsafe cursor.withReadableBytes { (_: UnsafeRawBufferPointer) throws(TestError) in
-                throw TestError.expected
+        do throws(Fault) {
+            try unsafe cursor.withReadableBytes { (_: UnsafeRawBufferPointer) throws(Fault) in
+                throw Fault.expected
             }
-            Issue.record("expected TestError.expected")
+            Issue.record("expected Fault.expected")
         } catch {
             // expected: `withReadableBytes` is `throws(E)`, so the closure's
             // typed `TestError` propagates unchanged.

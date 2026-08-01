@@ -243,7 +243,7 @@ extension `Binary.Reader Tests`.`Edge Case` {
 
         // A lifetime-dependent reader cannot escape an #expect(throws:)
         // autoclosure; assert the fault via do/catch in linear scope instead.
-        do {
+        do throws(Binary.Reader<Swift.Span<Byte>>.Error) {
             try reader.moveReaderIndex(by: 10)
             Issue.record("expected Binary.Reader.Error.bounds")
         } catch {
@@ -256,7 +256,7 @@ extension `Binary.Reader Tests`.`Edge Case` {
         let bytes: [Byte] = [1, 2, 3]
         var reader = Binary.Reader(storage: bytes.span)
 
-        do {
+        do throws(Binary.Reader<Swift.Span<Byte>>.Error) {
             try reader.setReaderIndex(to: 10)
             Issue.record("expected Binary.Reader.Error.bounds")
         } catch {
@@ -266,16 +266,16 @@ extension `Binary.Reader Tests`.`Edge Case` {
 
     @Test
     func `withRemainingBytes propagates typed error`() {
-        enum TestError: Swift.Error { case expected }
+        enum Fault: Swift.Error { case expected }
 
         let bytes: [Byte] = [1, 2, 3]
         let reader = Binary.Reader(storage: bytes.span)
 
-        do {
-            try unsafe reader.withRemainingBytes { (_: UnsafeRawBufferPointer) throws(TestError) in
-                throw TestError.expected
+        do throws(Fault) {
+            try unsafe reader.withRemainingBytes { (_: UnsafeRawBufferPointer) throws(Fault) in
+                throw Fault.expected
             }
-            Issue.record("expected TestError.expected")
+            Issue.record("expected Fault.expected")
         } catch {
             // expected: `withRemainingBytes` is `throws(E)`, so the closure's
             // typed `TestError` propagates unchanged.
