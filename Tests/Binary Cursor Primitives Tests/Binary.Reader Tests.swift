@@ -44,7 +44,8 @@ extension `Binary.Reader Tests`.Unit {
     }
 
     @Test
-    func `init with custom index preserves position`() throws(Binary.Reader<Swift.Span<Byte>>.Error) {
+    func `init with custom index preserves position`() throws(Binary.Reader<Swift.Span<Byte>>.Error)
+    {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         let reader = try Binary.Reader(storage: bytes.span, readerIndex: 2)
 
@@ -70,7 +71,8 @@ extension `Binary.Reader Tests`.Unit {
     // MARK: - Move Reader Index
 
     @Test
-    func `moveReaderIndex advances reader by offset`() throws(Binary.Reader<Swift.Span<Byte>>.Error) {
+    func `moveReaderIndex advances reader by offset`() throws(Binary.Reader<Swift.Span<Byte>>.Error)
+    {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         var reader = Binary.Reader(storage: bytes.span)
 
@@ -82,7 +84,9 @@ extension `Binary.Reader Tests`.Unit {
     }
 
     @Test
-    func `moveReaderIndex allows negative offset for rewind`() throws(Binary.Reader<Swift.Span<Byte>>.Error) {
+    func `moveReaderIndex allows negative offset for rewind`() throws(Binary.Reader<
+        Swift.Span<Byte>
+    >.Error) {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         var reader = try Binary.Reader(storage: bytes.span, readerIndex: 3)
 
@@ -186,7 +190,8 @@ extension `Binary.Reader Tests`.Unit {
     // MARK: - Closure-Based Access
 
     @Test
-    func `withRemainingBytes provides correct slice`() throws(Binary.Reader<Swift.Span<Byte>>.Error) {
+    func `withRemainingBytes provides correct slice`() throws(Binary.Reader<Swift.Span<Byte>>.Error)
+    {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         let reader = try Binary.Reader(storage: bytes.span, readerIndex: 2)
 
@@ -205,7 +210,9 @@ extension `Binary.Reader Tests`.Unit {
     }
 
     @Test
-    func `withRemainingBytes returns empty for exhausted reader`() throws(Binary.Reader<Swift.Span<Byte>>.Error) {
+    func `withRemainingBytes returns empty for exhausted reader`() throws(Binary.Reader<
+        Swift.Span<Byte>
+    >.Error) {
         let bytes: [Byte] = [1, 2, 3]
         let reader = try Binary.Reader(storage: bytes.span, readerIndex: 3)
 

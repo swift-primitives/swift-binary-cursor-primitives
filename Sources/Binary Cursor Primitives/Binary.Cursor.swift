@@ -255,6 +255,7 @@ extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
         _readerIndex = Index<Storage>(Ordinal(UInt(newIndex)))
     }
 
+    // swift-format-ignore: AlwaysUseLowerCamelCase
     /// Move reader index by offset (unchecked).
     ///
     /// - Parameters:
@@ -315,6 +316,7 @@ extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
         _writerIndex = Index<Storage>(Ordinal(UInt(newIndex)))
     }
 
+    // swift-format-ignore: AlwaysUseLowerCamelCase
     /// Move writer index by offset (unchecked).
     ///
     /// - Parameters:
@@ -359,6 +361,7 @@ extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
         _readerIndex = position
     }
 
+    // swift-format-ignore: AlwaysUseLowerCamelCase
     /// Set reader index to position (unchecked).
     ///
     /// - Parameters:
@@ -408,6 +411,7 @@ extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
         _writerIndex = position
     }
 
+    // swift-format-ignore: AlwaysUseLowerCamelCase
     /// Set writer index to position (unchecked).
     ///
     /// - Parameters:
@@ -464,7 +468,8 @@ extension Binary.Cursor where Storage: ~Copyable & ~Escapable {
         _ body: (UnsafeRawBufferPointer) throws(E) -> R
     ) throws(E) -> R {
         let span = readableBytes
-        return try unsafe span.withUnsafeBytes { (rawBuffer: UnsafeRawBufferPointer) throws(E) -> R in
+        return try unsafe span.withUnsafeBytes {
+            (rawBuffer: UnsafeRawBufferPointer) throws(E) -> R in
             try unsafe body(rawBuffer)
         }
     }
