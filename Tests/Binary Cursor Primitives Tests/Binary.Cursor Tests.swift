@@ -48,7 +48,9 @@ extension `Binary.Cursor Tests`.Unit {
     }
 
     @Test
-    func `init with custom indices preserves positions`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `init with custom indices preserves positions`() throws(Binary.Cursor<Swift.Span<Byte>>
+        .Error)
+    {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         let cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -87,7 +89,8 @@ extension `Binary.Cursor Tests`.Unit {
     // MARK: - Move Reader Index
 
     @Test
-    func `moveReaderIndex advances reader by offset`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `moveReaderIndex advances reader by offset`() throws(Binary.Cursor<Swift.Span<Byte>>.Error)
+    {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         var cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -103,7 +106,8 @@ extension `Binary.Cursor Tests`.Unit {
     }
 
     @Test
-    func `moveReaderIndex unchecked advances reader`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `moveReaderIndex unchecked advances reader`() throws(Binary.Cursor<Swift.Span<Byte>>.Error)
+    {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         var cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -121,7 +125,8 @@ extension `Binary.Cursor Tests`.Unit {
     // MARK: - Move Writer Index
 
     @Test
-    func `moveWriterIndex advances writer by offset`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `moveWriterIndex advances writer by offset`() throws(Binary.Cursor<Swift.Span<Byte>>.Error)
+    {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         var cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -137,7 +142,8 @@ extension `Binary.Cursor Tests`.Unit {
     }
 
     @Test
-    func `moveWriterIndex unchecked advances writer`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `moveWriterIndex unchecked advances writer`() throws(Binary.Cursor<Swift.Span<Byte>>.Error)
+    {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         var cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -169,7 +175,9 @@ extension `Binary.Cursor Tests`.Unit {
     }
 
     @Test
-    func `setReaderIndex unchecked sets absolute position`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `setReaderIndex unchecked sets absolute position`() throws(Binary.Cursor<Swift.Span<Byte>>
+        .Error)
+    {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         var cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -201,7 +209,9 @@ extension `Binary.Cursor Tests`.Unit {
     }
 
     @Test
-    func `setWriterIndex unchecked sets absolute position`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `setWriterIndex unchecked sets absolute position`() throws(Binary.Cursor<Swift.Span<Byte>>
+        .Error)
+    {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         var cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -237,7 +247,9 @@ extension `Binary.Cursor Tests`.Unit {
     // MARK: - Readable/Writable Checks
 
     @Test
-    func `isReadable returns true when bytes available`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `isReadable returns true when bytes available`() throws(Binary.Cursor<Swift.Span<Byte>>
+        .Error)
+    {
         let bytes: [Byte] = [1, 2, 3]
         let cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -250,7 +262,9 @@ extension `Binary.Cursor Tests`.Unit {
     }
 
     @Test
-    func `isReadable returns false when no bytes available`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `isReadable returns false when no bytes available`() throws(Binary.Cursor<Swift.Span<Byte>>
+        .Error)
+    {
         let bytes: [Byte] = [1, 2, 3]
         let cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -263,7 +277,9 @@ extension `Binary.Cursor Tests`.Unit {
     }
 
     @Test
-    func `isWritable returns true when space available`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `isWritable returns true when space available`() throws(Binary.Cursor<Swift.Span<Byte>>
+        .Error)
+    {
         let bytes: [Byte] = [1, 2, 3]
         let cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -276,7 +292,9 @@ extension `Binary.Cursor Tests`.Unit {
     }
 
     @Test
-    func `isWritable returns false when no space available`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `isWritable returns false when no space available`() throws(Binary.Cursor<Swift.Span<Byte>>
+        .Error)
+    {
         let bytes: [Byte] = [1, 2, 3]
         let cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -291,7 +309,8 @@ extension `Binary.Cursor Tests`.Unit {
     // MARK: - Closure-Based Access
 
     @Test
-    func `withReadableBytes provides correct slice`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `withReadableBytes provides correct slice`() throws(Binary.Cursor<Swift.Span<Byte>>.Error)
+    {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         let cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -353,7 +372,9 @@ extension `Binary.Cursor Tests`.`Edge Case` {
     }
 
     @Test
-    func `moveReaderIndex throws when exceeding writer`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `moveReaderIndex throws when exceeding writer`() throws(Binary.Cursor<Swift.Span<Byte>>
+        .Error)
+    {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         var cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -370,7 +391,9 @@ extension `Binary.Cursor Tests`.`Edge Case` {
     }
 
     @Test
-    func `moveWriterIndex throws when exceeding storage count`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `moveWriterIndex throws when exceeding storage count`() throws(Binary.Cursor<
+        Swift.Span<Byte>
+    >.Error) {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         var cursor = try Binary.Cursor(
             storage: bytes.span,
@@ -387,7 +410,8 @@ extension `Binary.Cursor Tests`.`Edge Case` {
     }
 
     @Test
-    func `withReadableBytes propagates typed error`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
+    func `withReadableBytes propagates typed error`() throws(Binary.Cursor<Swift.Span<Byte>>.Error)
+    {
         enum Fault: Swift.Error { case expected }
 
         let bytes: [Byte] = [1, 2, 3]
