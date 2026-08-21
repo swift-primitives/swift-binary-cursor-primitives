@@ -1,23 +1,8 @@
-// Binary.Cursor Tests.swift
-
 import Binary_Cursor_Primitives_Test_Support
 import Byte_Primitives
 import Span_Protocol_Primitives
 import Testing
 
-// MARK: - Test Suites
-
-/// Tests for Binary.Cursor - uses parallel namespace pattern per [TEST-004]
-/// since Binary.Cursor is a generic type.
-///
-/// `Binary.Cursor` is a `~Copyable & ~Escapable` borrowed view over a
-/// `Swift.Span<Byte>`. Fixtures are `[Byte]` arrays whose `.span` (a
-/// `Swift.Span<Byte>: Span.\`Protocol\``) is the storage; the array must outlive
-/// the cursor, so it is bound to a named `let bytes` in each test. Per
-/// [SWIFT-TEST-014], observable properties are projected to Copyable locals
-/// before `#expect` (the macro copies its operands); throwing paths use
-/// `do`/`catch` in linear scope because a lifetime-dependent cursor cannot
-/// escape an `#expect(throws:)` autoclosure.
 @Suite
 struct `Binary.Cursor Tests` {
     @Suite struct Unit {}
@@ -26,11 +11,7 @@ struct `Binary.Cursor Tests` {
     @Suite(.serialized) struct Performance {}
 }
 
-// MARK: - Unit Tests
-
 extension `Binary.Cursor Tests`.Unit {
-
-    // MARK: - Initialization
 
     @Test
     func `init with default indices sets reader and writer to zero`() {
@@ -72,8 +53,7 @@ extension `Binary.Cursor Tests`.Unit {
     func `init unchecked bypasses validation`() {
         let bytes: [Byte] = [1, 2, 3, 4, 5]
         let cursor = Binary.Cursor(
-            // swift-linter:disable:next unchecked call site
-            // REASON: Test deliberately exercises the unchecked init bypass surface per [CONV-001] same-package use.
+
             __unchecked: (),
             storage: bytes.span,
             readerIndex: 1,
@@ -85,8 +65,6 @@ extension `Binary.Cursor Tests`.Unit {
         #expect(readerIndex == 1)
         #expect(writerIndex == 4)
     }
-
-    // MARK: - Move Reader Index
 
     @Test
     func `moveReaderIndex advances reader by offset`() throws(Binary.Cursor<Swift.Span<Byte>>.Error)
@@ -115,14 +93,10 @@ extension `Binary.Cursor Tests`.Unit {
             writerIndex: 5
         )
 
-        // swift-linter:disable:next unchecked call site
-        // REASON: Test deliberately exercises the unchecked move bypass surface per [CONV-001] same-package use.
         cursor.moveReaderIndex(__unchecked: (), by: 2)
         let readerIndex = cursor.readerIndex
         #expect(readerIndex == 2)
     }
-
-    // MARK: - Move Writer Index
 
     @Test
     func `moveWriterIndex advances writer by offset`() throws(Binary.Cursor<Swift.Span<Byte>>.Error)
@@ -151,14 +125,10 @@ extension `Binary.Cursor Tests`.Unit {
             writerIndex: 2
         )
 
-        // swift-linter:disable:next unchecked call site
-        // REASON: Test deliberately exercises the unchecked move bypass surface per [CONV-001] same-package use.
         cursor.moveWriterIndex(__unchecked: (), by: 2)
         let writerIndex = cursor.writerIndex
         #expect(writerIndex == 4)
     }
-
-    // MARK: - Set Reader Index
 
     @Test
     func `setReaderIndex sets absolute position`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
@@ -185,14 +155,10 @@ extension `Binary.Cursor Tests`.Unit {
             writerIndex: 5
         )
 
-        // swift-linter:disable:next unchecked call site
-        // REASON: Test deliberately exercises the unchecked set bypass surface per [CONV-001] same-package use.
         cursor.setReaderIndex(__unchecked: (), to: 3)
         let readerIndex = cursor.readerIndex
         #expect(readerIndex == 3)
     }
-
-    // MARK: - Set Writer Index
 
     @Test
     func `setWriterIndex sets absolute position`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
@@ -219,14 +185,10 @@ extension `Binary.Cursor Tests`.Unit {
             writerIndex: 2
         )
 
-        // swift-linter:disable:next unchecked call site
-        // REASON: Test deliberately exercises the unchecked set bypass surface per [CONV-001] same-package use.
         cursor.setWriterIndex(__unchecked: (), to: 4)
         let writerIndex = cursor.writerIndex
         #expect(writerIndex == 4)
     }
-
-    // MARK: - Reset
 
     @Test
     func `reset clears both indices to zero`() throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
@@ -243,8 +205,6 @@ extension `Binary.Cursor Tests`.Unit {
         #expect(readerIndex == 0)
         #expect(writerIndex == 0)
     }
-
-    // MARK: - Readable/Writable Checks
 
     @Test
     func `isReadable returns true when bytes available`() throws(Binary.Cursor<Swift.Span<Byte>>
@@ -306,8 +266,6 @@ extension `Binary.Cursor Tests`.Unit {
         #expect(isWritable == false)
     }
 
-    // MARK: - Closure-Based Access
-
     @Test
     func `withReadableBytes provides correct slice`() throws(Binary.Cursor<Swift.Span<Byte>>.Error)
     {
@@ -319,8 +277,7 @@ extension `Binary.Cursor Tests`.Unit {
         )
 
         unsafe cursor.withReadableBytes { ptr in
-            // `unsafe` does not propagate into the closure ([MEM-UNSAFE-004]);
-            // each raw-buffer load is marked and projected to a Copyable local.
+
             let count = ptr.count
             let byte0 = unsafe ptr[0]
             let byte1 = unsafe ptr[1]
@@ -333,16 +290,12 @@ extension `Binary.Cursor Tests`.Unit {
     }
 }
 
-// MARK: - Edge Case Tests
-
 extension `Binary.Cursor Tests`.`Edge Case` {
 
     @Test
     func `init throws when reader exceeds writer`() {
         let bytes: [Byte] = [1, 2, 3]
 
-        // A lifetime-dependent cursor cannot escape an #expect(throws:)
-        // autoclosure; assert the fault via do/catch in linear scope instead.
         do throws(Binary.Cursor<Swift.Span<Byte>>.Error) {
             _ = try Binary.Cursor(
                 storage: bytes.span,
@@ -351,7 +304,7 @@ extension `Binary.Cursor Tests`.`Edge Case` {
             )
             Issue.record("expected Binary.Cursor.Error.invariant")
         } catch {
-            // expected: reader 2 > writer 1 violates the ordering invariant
+
         }
     }
 
@@ -367,7 +320,7 @@ extension `Binary.Cursor Tests`.`Edge Case` {
             )
             Issue.record("expected Binary.Cursor.Error.bounds")
         } catch {
-            // expected: writer 10 exceeds count 3
+
         }
     }
 
@@ -386,7 +339,7 @@ extension `Binary.Cursor Tests`.`Edge Case` {
             try cursor.moveReaderIndex(by: 5)
             Issue.record("expected Binary.Cursor.Error.invariant")
         } catch {
-            // expected: reader would advance past writer 3
+
         }
     }
 
@@ -405,7 +358,7 @@ extension `Binary.Cursor Tests`.`Edge Case` {
             try cursor.moveWriterIndex(by: 10)
             Issue.record("expected Binary.Cursor.Error.bounds")
         } catch {
-            // expected: writer would advance past count 5
+
         }
     }
 
@@ -427,8 +380,7 @@ extension `Binary.Cursor Tests`.`Edge Case` {
             }
             Issue.record("expected Fault.expected")
         } catch {
-            // expected: `withReadableBytes` is `throws(E)`, so the closure's
-            // typed `TestError` propagates unchanged.
+
         }
     }
 }
