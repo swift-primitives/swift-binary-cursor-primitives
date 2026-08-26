@@ -1,4 +1,4 @@
-# Binary Cursor Primitives
+# Binary Cursor
 
 ![Development Status](https://img.shields.io/badge/status-active--development-blue.svg)
 
@@ -11,7 +11,7 @@ Position-tracked readers over borrowed byte storage — a `Binary.Cursor` with s
 A `Binary.Reader` tracks a single read position over borrowed byte storage. Because it is `~Copyable & ~Escapable`, it cannot be copied and cannot outlive the storage it reads — the borrow is enforced by the compiler.
 
 ```swift
-import Binary_Cursor_Primitives
+import Binary_Cursor
 
 // Borrowed byte storage. The array must outlive any reader or cursor over it.
 let frame: [Byte] = [0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x02]
@@ -32,7 +32,7 @@ unsafe reader.withRemainingBytes { payload in
 A `Binary.Cursor` adds a second index. It tracks a reader and a writer position over the same storage and enforces the invariant `0 <= readerIndex <= writerIndex <= count` at every mutation — moves and absolute sets that would break it throw a typed `Binary.Cursor.Error` instead of corrupting state.
 
 ```swift
-import Binary_Cursor_Primitives
+import Binary_Cursor
 
 let buffer: [Byte] = [1, 2, 3, 4, 5]
 
@@ -59,7 +59,7 @@ Positions are typed: `Index<Storage>` for an absolute position, `Index<Storage>.
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/swift-primitives/swift-binary-cursor-primitives.git", branch: "main")
+    .package(url: "https://github.com/swift-molecules/swift-binary-cursor.git", branch: "main")
 ]
 ```
 
@@ -67,7 +67,7 @@ dependencies: [
 .target(
     name: "App",
     dependencies: [
-        .product(name: "Binary Cursor Primitives", package: "swift-binary-cursor-primitives"),
+        .product(name: "Binary Cursor", package: "swift-binary-cursor"),
     ]
 )
 ```
@@ -82,8 +82,8 @@ Two library products over generic byte storage — any `Span.Protocol` conformer
 
 | Product | Target | Purpose |
 |---------|--------|---------|
-| `Binary Cursor Primitives` | `Sources/Binary Cursor Primitives/` | The `Binary.Cursor` dual reader/writer view and the read-only `Binary.Reader`, with their typed `Binary.Cursor.Error` and `Binary.Reader.Error` navigation faults. |
-| `Binary Cursor Primitives Test Support` | `Tests/Support/` | Re-exports the main target for test consumers. |
+| `Binary Cursor` | `Sources/Binary Cursor/` | The `Binary.Cursor` dual reader/writer view and the read-only `Binary.Reader`, with their typed `Binary.Cursor.Error` and `Binary.Reader.Error` navigation faults. |
+| `Binary Cursor Test Support` | `Tests/Support/` | Re-exports the main target for test consumers. |
 
 Foundation-free.
 

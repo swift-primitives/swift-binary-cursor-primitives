@@ -1,6 +1,6 @@
-import Binary_Cursor_Primitives_Test_Support
-import Byte_Primitives
-import Span_Protocol_Primitives
+import Binary_Cursor_Test_Support
+import Byte
+import Span_Protocol
 import Testing
 
 @Suite

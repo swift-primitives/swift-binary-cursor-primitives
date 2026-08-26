@@ -1,6 +1,6 @@
-public import Byte_Primitives
-public import Index_Primitives
-public import Span_Protocol_Primitives
+public import Byte
+public import Index
+public import Span_Protocol
 
 extension Binary {
 

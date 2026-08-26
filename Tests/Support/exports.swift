@@ -1,2 +1,2 @@
-@_exported public import Binary_Cursor_Primitives
-@_exported public import Binary_Primitives_Test_Support
+@_exported public import Binary_Cursor
+@_exported public import Binary_Test_Support
